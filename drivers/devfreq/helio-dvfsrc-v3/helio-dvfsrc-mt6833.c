@@ -11,6 +11,7 @@
  * See http://www.gnu.org/licenses/gpl-2.0.html for more details.
  */
 
+#include <linux/fb.h>
 #include <linux/platform_device.h>
 #ifdef CONFIG_MEDIATEK_DRAMC
 #include <dramc.h>
@@ -22,7 +23,7 @@
 #include <mt-plat/upmu_common.h>
 #include "helio-dvfsrc-ip-v2.h"
 #include <helio-dvfsrc-opp.h>
-#include <helio-dvfsrc-mt6893.h>
+#include <helio-dvfsrc-mt6833.h>
 #include <mt-plat/mtk_devinfo.h>
 #include <linux/regulator/consumer.h>
 #include "mmdvfs_pmqos.h"
@@ -30,43 +31,49 @@
 #include <linux/of.h>
 #include <linux/platform_device.h>
 #include <linux/sched/clock.h>
-#ifdef	CONFIG_MTK_DBGTOP
 #include <dbgtop.h>
-#endif
 
-//#define AUTOK_ENABLE
+#define DVFSRC_FB_MD_TABLE_SWITCH
+/* #define AUTOK_ENABLE */
+#define dvfsrc_rmw(offset, val, mask, shift) \
+	dvfsrc_write(offset, (dvfsrc_read(offset) & ~(mask << shift)) \
+			| (val << shift))
+
 
 static struct reg_config dvfsrc_init_configs[][128] = {
 	{
 		{ DVFSRC_HRT_REQ_UNIT,       0x0000001E },
 		{ DVFSRC_DEBOUNCE_TIME,      0x00001965 },
-		{ DVFSRC_TIMEOUT_NEXTREQ,    0x0000001E },
-		{ DVFSRC_LEVEL_MASK,         0x001DC000 },
-		{ DVFSRC_LEVEL_MASK,	     0x00CCCC80 },
+		{ DVFSRC_TIMEOUT_NEXTREQ,    0x00000015 },
+		{ DVFSRC_LEVEL_MASK,         0x00EEE000 },
 
-		{ DVFSRC_DDR_QOS0,           0x00000033 },
-		{ DVFSRC_DDR_QOS1,           0x0000004C },
-		{ DVFSRC_DDR_QOS2,           0x00000062 },
-		{ DVFSRC_DDR_QOS3,           0x00000077 },
-		{ DVFSRC_DDR_QOS4,           0x00000099 },
-		{ DVFSRC_DDR_QOS5,           0x000000CC },
-		{ DVFSRC_DDR_QOS6,           0x000000EE },
+		{ DVFSRC_SW_REQ8,            0x00001000 },
 
-		{ DVFSRC_LEVEL_LABEL_0_1,    0x60547064 },
-		{ DVFSRC_LEVEL_LABEL_2_3,    0x50436053 },
-		{ DVFSRC_LEVEL_LABEL_4_5,    0x40335042 },
-		{ DVFSRC_LEVEL_LABEL_6_7,    0x40314032 },
-		{ DVFSRC_LEVEL_LABEL_8_9,    0x30223023 },
-		{ DVFSRC_LEVEL_LABEL_10_11,  0x30203021 },
-		{ DVFSRC_LEVEL_LABEL_12_13,  0x20122013 },
-		{ DVFSRC_LEVEL_LABEL_14_15,  0x20102011 },
-		{ DVFSRC_LEVEL_LABEL_16_17,  0x10021003 },
-		{ DVFSRC_LEVEL_LABEL_18_19,  0x10001001 },
-		{ DVFSRC_LEVEL_LABEL_20_21,  0x00120013 },
-		{ DVFSRC_LEVEL_LABEL_22_23,  0x00100011 },
+		{ DVFSRC_DDR_QOS0,           0x0000000c },
+		{ DVFSRC_DDR_QOS1,           0x00000019 },
+		{ DVFSRC_DDR_QOS2,           0x00000026 },
+		{ DVFSRC_DDR_QOS3,           0x00000033 },
+		{ DVFSRC_DDR_QOS4,           0x0000003B },
+		{ DVFSRC_DDR_QOS5,           0x0000004C },
+		{ DVFSRC_DDR_QOS6,           0x00000066 },
 
-		{ DVFSRC_MD_LATENCY_IMPROVE, 0x00000040 },
-		{ DVSFRC_HRT_REQ_MD_URG,     0x001AA1AA },
+		{ DVFSRC_LEVEL_LABEL_0_1,    0x60537063 },
+		{ DVFSRC_LEVEL_LABEL_2_3,    0x50436052 },
+		{ DVFSRC_LEVEL_LABEL_4_5,    0x50415042 },
+		{ DVFSRC_LEVEL_LABEL_6_7,    0x40324033 },
+		{ DVFSRC_LEVEL_LABEL_8_9,    0x30234031 },
+		{ DVFSRC_LEVEL_LABEL_10_11,  0x30213022 },
+		{ DVFSRC_LEVEL_LABEL_12_13,  0x20133020 },
+		{ DVFSRC_LEVEL_LABEL_14_15,  0x20112012 },
+		{ DVFSRC_LEVEL_LABEL_16_17,  0x10232010 },
+		{ DVFSRC_LEVEL_LABEL_18_19,  0x10211022 },
+		{ DVFSRC_LEVEL_LABEL_20_21,  0x00031020 },
+		{ DVFSRC_LEVEL_LABEL_22_23,  0x00010002 },
+		{ DVFSRC_LEVEL_LABEL_24_25,  0x00000000 },
+
+		{ DVFSRC_MD_LATENCY_IMPROVE, 0x00000050 },
+		{ DVFSRC_HRT_BW_BASE,        0x00000004 },
+		{ DVSFRC_HRT_REQ_MD_URG,     0x000D20D2 },
 		{ DVFSRC_HRT_REQ_MD_BW_0,    0x00200802 },
 		{ DVFSRC_HRT_REQ_MD_BW_1,    0x00200802 },
 		{ DVFSRC_HRT_REQ_MD_BW_2,    0x00200800 },
@@ -77,7 +84,7 @@ static struct reg_config dvfsrc_init_configs[][128] = {
 		{ DVFSRC_HRT_REQ_MD_BW_7,    0x00000024 },
 		{ DVFSRC_HRT_REQ_MD_BW_8,    0x00000000 },
 		{ DVFSRC_HRT_REQ_MD_BW_9,    0x00000000 },
-		{ DVFSRC_HRT_REQ_MD_BW_10,   0x0006A800 },
+		{ DVFSRC_HRT_REQ_MD_BW_10,   0x00034800 },
 		{ DVFSRC_HRT1_REQ_MD_BW_0,   0x04B12C4B },
 		{ DVFSRC_HRT1_REQ_MD_BW_1,   0x04B12C4B },
 		{ DVFSRC_HRT1_REQ_MD_BW_2,   0x04B12C00 },
@@ -88,44 +95,45 @@ static struct reg_config dvfsrc_init_configs[][128] = {
 		{ DVFSRC_HRT1_REQ_MD_BW_7,   0x0000005C },
 		{ DVFSRC_HRT1_REQ_MD_BW_8,   0x00000000 },
 		{ DVFSRC_HRT1_REQ_MD_BW_9,   0x00000000 },
-		{ DVFSRC_HRT1_REQ_MD_BW_10,  0x0006A800 },
+		{ DVFSRC_HRT1_REQ_MD_BW_10,  0x00034800 },
 
-		{ DVFSRC_95MD_SCEN_BW0_T,    0x40444440 },
-		{ DVFSRC_95MD_SCEN_BW1_T,    0x43344444 },
-		{ DVFSRC_95MD_SCEN_BW2_T,    0x04300444 },
-		{ DVFSRC_95MD_SCEN_BW3_T,    0x60000000 },
-		{ DVFSRC_95MD_SCEN_BW0,      0x20222220 },
-		{ DVFSRC_95MD_SCEN_BW1,      0x22222222 },
-		{ DVFSRC_95MD_SCEN_BW2,      0x02200222 },
-		{ DVFSRC_95MD_SCEN_BW3,      0x60000000 },
-		{ DVFSRC_95MD_SCEN_BW4,      0x00000006 },
+		{ DVFSRC_95MD_SCEN_BW0_T,    0x30333330 },
+		{ DVFSRC_95MD_SCEN_BW1_T,    0x33333333 },
+		{ DVFSRC_95MD_SCEN_BW2_T,    0x00500555 },
+		{ DVFSRC_95MD_SCEN_BW3_T,    0x70000000 },
+		{ DVFSRC_95MD_SCEN_BW0,      0x10111110 },
+		{ DVFSRC_95MD_SCEN_BW1,      0x11111111},
+		{ DVFSRC_95MD_SCEN_BW2,      0x00300333 },
+		{ DVFSRC_95MD_SCEN_BW3,      0x70000000 },
+		{ DVFSRC_95MD_SCEN_BW4,      0x00000007 },
+		{ DVFSRC_RSRV_5,             0x00000001 },
 
 		{ DVFSRC_DDR_REQUEST,        0x00004321 },
 		{ DVFSRC_DDR_REQUEST3,       0x00000765 },
 		{ DVFSRC_DDR_ADD_REQUEST,    0x76543210 },
-		{ DVFSRC_EMI_ADD_REQUEST,    0x66543210 },
 		{ DVFSRC_HRT_REQUEST,        0x77654321 },
 		{ DVFSRC_DDR_REQUEST5,	     0x54321000 },
 		{ DVFSRC_DDR_REQUEST7,       0x76000000 },
 		{ DVFSRC_EMI_MON_DEBOUNCE_TIME,   0x4C2D0000 },
-		{ DVFSRC_VCORE_REQUEST4,     0x21110000 },
+		{ DVFSRC_DDR_REQUEST6,       0x76543210 },
+		{ DVFSRC_VCORE_USER_REQ,     0x00010A29 },
 
-		{ DVFSRC_HRT_HIGH_3,         0x3A543A54 },
-		{ DVFSRC_HRT_HIGH_2,         0x314C2306 },
-		{ DVFSRC_HRT_HIGH_1,         0x1AD21700 },
-		{ DVFSRC_HRT_HIGH,           0x0E100960 },
-		{ DVFSRC_HRT_LOW_3,          0x3A533A53 },
-		{ DVFSRC_HRT_LOW_2,          0x314B2305 },
-		{ DVFSRC_HRT_LOW_1,          0x1AD116FF },
-		{ DVFSRC_HRT_LOW,            0x0E0F095F },
+		{ DVFSRC_HRT_HIGH_3,         0x18A618A6 },
+		{ DVFSRC_HRT_HIGH_2,         0x11830D69 },
+		{ DVFSRC_HRT_HIGH_1,         0x0B800708 },
+		{ DVFSRC_HRT_HIGH,           0x04B000C8 },
+		{ DVFSRC_HRT_LOW_3,          0x18A518A5 },
+		{ DVFSRC_HRT_LOW_2,          0x11820D68 },
+		{ DVFSRC_HRT_LOW_1,          0x0B7F0707 },
+		{ DVFSRC_HRT_LOW,            0x04AF00C7 },
 
-/*		{ DVFSRC_BASIC_CONTROL_3,    0x0000000E },*/
+		{ DVFSRC_BASIC_CONTROL_3,    0x00000006 },
 		{ DVFSRC_INT_EN,             0x00000002 },
 		{ DVFSRC_QOS_EN,             0x0000407C },
 
-		{ DVFSRC_CURRENT_FORCE,      0x00000004 },
-		{ DVFSRC_BASIC_CONTROL,      0x66F8404B },
-		{ DVFSRC_BASIC_CONTROL,      0x66F8014B },
+		{ DVFSRC_CURRENT_FORCE,      0x00000001 },
+		{ DVFSRC_BASIC_CONTROL,      0x6718444B },
+		{ DVFSRC_BASIC_CONTROL,      0x6718054B },
 		{ DVFSRC_CURRENT_FORCE,      0x00000000 },
 		{ -1, 0 },
 	},
@@ -152,7 +160,6 @@ static ssize_t dvfsrc_level_mask_store(struct device *dev,
 
 	return count;
 }
-
 static DEVICE_ATTR(dvfsrc_level_mask, 0644,
 		dvfsrc_level_mask_show, dvfsrc_level_mask_store);
 
@@ -161,21 +168,86 @@ static ssize_t dvfsrc_vcore_settle_time_show(struct device *dev,
 		struct device_attribute *attr, char *buf)
 {
 	/* DE's comment: settle time was hard code in fw (15,30) */
-	return sprintf(buf, "rising 15 uS, falling 30 uS for mt6893\n");
+	return sprintf(buf, "rising 15 uS, falling 30 uS for mt6833\n");
 }
-
 static DEVICE_ATTR(dvfsrc_vcore_settle_time, 0444,
 		dvfsrc_vcore_settle_time_show, NULL);
 
-static struct attribute *mt6893_helio_dvfsrc_attrs[] = {
+static ssize_t dvfsrc_md_imp_gear_show(struct device *dev,
+		struct device_attribute *attr, char *buf)
+{
+	return sprintf(buf, "%x\n", dvfsrc_read(DVFSRC_MD_LATENCY_IMPROVE));
+}
+static ssize_t dvfsrc_md_imp_gear_store(struct device *dev,
+		struct device_attribute *attr, const char *buf, size_t count)
+{
+	int gear = 0;
+
+	if (kstrtoint(buf, 10, &gear))
+		return -EINVAL;
+
+	if (gear >= DDR_OPP_NUM || gear < 0)
+		return -EINVAL;
+
+	dvfsrc_rmw(DVFSRC_MD_LATENCY_IMPROVE, gear, 0x7, 4);
+
+	return count;
+}
+static DEVICE_ATTR(dvfsrc_md_imp_gear, 0644,
+	dvfsrc_md_imp_gear_show, dvfsrc_md_imp_gear_store);
+
+static ssize_t dvfsrc_md_qos_performance_show(struct device *dev,
+	struct device_attribute *attr, char *buf)
+{
+	int len = 0;
+
+	len += snprintf(buf + len, PAGE_SIZE - 1 - len,
+		"%-12s: 0x%08x\n",
+		"RSRV_5",
+		dvfsrc_read(DVFSRC_RSRV_5));
+
+	len += snprintf(buf + len, PAGE_SIZE - 1 - len,
+		"%-12s: 0x%08x\n",
+		"DVFSRC_MD_TURBO",
+		dvfsrc_read(DVFSRC_MD_TURBO));
+
+	len += snprintf(buf + len, PAGE_SIZE - 1 - len,
+		"%-12s: 0x%08x\n",
+		"SCEN_URGENT",
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW4));
+
+	len += snprintf(buf + len, PAGE_SIZE - 1 - len,
+		"%-12s: 0x%08x, %08x, %08x, %08x\n",
+		"SCEN_BW_T",
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW0_T),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW1_T),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW2_T),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW3_T));
+
+	len += snprintf(buf + len, PAGE_SIZE - 1 - len,
+		"%-12s: 0x%08x, %08x, %08x, %08x\n",
+		"SCEN_BW",
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW0),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW1),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW2),
+		dvfsrc_read(DVFSRC_95MD_SCEN_BW3));
+
+	return len;
+}
+static DEVICE_ATTR(dvfsrc_md_qos_performance, 0444,
+	dvfsrc_md_qos_performance_show, NULL);
+
+static struct attribute *mt6833_helio_dvfsrc_attrs[] = {
 	&dev_attr_dvfsrc_level_mask.attr,
 	&dev_attr_dvfsrc_vcore_settle_time.attr,
+	&dev_attr_dvfsrc_md_imp_gear.attr,
+	&dev_attr_dvfsrc_md_qos_performance.attr,
 	NULL,
 };
 
-static struct attribute_group mt6893_helio_dvfsrc_attr_group = {
+static struct attribute_group mt6833_helio_dvfsrc_attr_group = {
 	.name = "helio-dvfsrc",
-	.attrs = mt6893_helio_dvfsrc_attrs,
+	.attrs = mt6833_helio_dvfsrc_attrs,
 };
 
 
@@ -191,19 +263,19 @@ u32 dvfsrc_get_ddr_qos(void)
 			   dvfsrc_read(DVFSRC_SW_BW_3) +
 			   dvfsrc_read(DVFSRC_SW_BW_4);
 
-		if (qos_total_bw < 0x33)
+		if (qos_total_bw < 0xC)
 			return 0;
-		else if (qos_total_bw < 0x4C)
+		else if (qos_total_bw < 0x19)
 			return 1;
-		else if (qos_total_bw < 0x62)
+		else if (qos_total_bw < 0x26)
 			return 2;
-		else if (qos_total_bw < 0x77)
+		else if (qos_total_bw < 0x33)
 			return 3;
-		else if (qos_total_bw < 0x99)
+		else if (qos_total_bw < 0x3B)
 			return 4;
-		else if (qos_total_bw < 0xCC)
+		else if (qos_total_bw < 0x4C)
 			return 5;
-		else if (qos_total_bw < 0xEE)
+		else if (qos_total_bw < 0x66)
 			return 6;
 		else
 			return 7;
@@ -211,13 +283,12 @@ u32 dvfsrc_get_ddr_qos(void)
 	return 0;
 }
 
-
 static int dvfsrc_get_emi_mon_gear(void)
 {
 	unsigned int total_bw_status;
 	int i;
 
-	total_bw_status = vcorefs_get_total_emi_status() & 0x7F;
+	total_bw_status = vcorefs_get_total_emi_status() & 0x3F;
 	for (i = 6; i >= 0 ; i--) {
 		if ((total_bw_status >> i) > 0)
 			return i + 1;
@@ -228,19 +299,19 @@ static int dvfsrc_get_emi_mon_gear(void)
 
 static u32 dvfsrc_calc_hrt_opp(int data)
 {
-	if (data < 0x0960)
+	if (data < 0x00C8)
 		return DDR_OPP_7;
-	else if (data < 0x0E10)
+	else if (data < 0x04B0)
 		return DDR_OPP_6;
-	else if (data < 0x1700)
+	else if (data < 0x0708)
 		return DDR_OPP_5;
-	else if (data < 0x1AD2)
+	else if (data < 0x0B80)
 		return DDR_OPP_4;
-	else if (data < 0x2306)
+	else if (data < 0x0D69)
 		return DDR_OPP_3;
-	else if (data < 0x314C)
+	else if (data < 0x1183)
 		return DDR_OPP_2;
-	else if (data < 0x3A54)
+	else if (data < 0x18A6)
 		return DDR_OPP_1;
 	else
 		return DDR_OPP_0;
@@ -263,7 +334,7 @@ u32 dvfsrc_calc_isp_hrt_opp(int data)
 
 struct regulator *dvfsrc_vcore_requlator(struct device *dev)
 {
-	return regulator_get(dev, "vgpu11");
+	return regulator_get(dev, "vcore");
 }
 
 
@@ -325,6 +396,40 @@ static void dvfsrc_autok_manager(void)
 }
 #endif
 
+static void dvfsrc_update_md_scenario(bool blank)
+{
+
+}
+
+static int dvfsrc_fb_notifier_call(struct notifier_block *self,
+		unsigned long event, void *data)
+{
+	struct fb_event *evdata = data;
+	int blank;
+
+	if (event != FB_EVENT_BLANK)
+		return 0;
+
+	blank = *(int *)evdata->data;
+
+	switch (blank) {
+	case FB_BLANK_UNBLANK:
+		dvfsrc_update_md_scenario(false);
+		break;
+	case FB_BLANK_POWERDOWN:
+		dvfsrc_update_md_scenario(true);
+		break;
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+static struct notifier_block dvfsrc_fb_notifier = {
+	.notifier_call = dvfsrc_fb_notifier_call,
+};
+
 void helio_dvfsrc_platform_pre_init(struct helio_dvfsrc *dvfsrc)
 {
 	struct platform_device *pdev = to_platform_device(dvfsrc->dev);
@@ -368,23 +473,13 @@ void dvfsrc_resume_cb(struct helio_dvfsrc *dvfsrc)
 
 }
 
-#define DVFSRC_MD_UP_SHIFT 28
 void helio_dvfsrc_platform_init(struct helio_dvfsrc *dvfsrc)
 {
 	int spmfw_idx = 0;
 	struct reg_config *config;
 	int idx = 0;
-	int dvfsrc_rsrv;
 
-
-	sysfs_merge_group(&dvfsrc->dev->kobj, &mt6893_helio_dvfsrc_attr_group);
-
-	dvfsrc_rsrv = readl(dvfsrc->regs + DVFSRC_RSRV_4);
-
-	if (((dvfsrc_rsrv >> DVFSRC_MD_UP_SHIFT) & 0x1))
-		dvfsrc_write(DVFSRC_BASIC_CONTROL_3, 0xE);
-	else
-		dvfsrc_write(DVFSRC_BASIC_CONTROL_3, 0x6);
+	sysfs_merge_group(&dvfsrc->dev->kobj, &mt6833_helio_dvfsrc_attr_group);
 
 	config = dvfsrc_init_configs[spmfw_idx];
 
@@ -395,6 +490,8 @@ void helio_dvfsrc_platform_init(struct helio_dvfsrc *dvfsrc)
 #ifdef AUTOK_ENABLE
 	dvfsrc_autok_manager();
 #endif
+
+	fb_register_client(&dvfsrc_fb_notifier);
 }
 
 int vcore_pmic_to_uv(int pmic_val)
@@ -429,22 +526,19 @@ void get_spm_reg(char *p)
 	p += sprintf(p, "%-24s: 0x%08x\n",
 			"SPM_DVFS_MISC",
 			spm_reg_read(SPM_DVFS_MISC));
-	p += sprintf(p, "%-24s: 0x%08x, 0x%08x, 0x%08x, 0x%08x 0x%08x\n",
-			"SPM_DVFS_CMD16~20",
-			spm_reg_read(SPM_DVFS_CMD16),
-			spm_reg_read(SPM_DVFS_CMD17),
-			spm_reg_read(SPM_DVFS_CMD18),
-			spm_reg_read(SPM_DVFS_CMD19),
-			spm_reg_read(SPM_DVFS_CMD20));
-	p += sprintf(p, "%-16s: %x , 0x%08x\n",
-			"MD_MASK",
-			dvfsrc_read(DVFSRC_BASIC_CONTROL_3),
-			dvfsrc_read(DVFSRC_LEVEL_MASK));
+	p += sprintf(p, "%-24s: 0x%08x, 0x%08x, 0x%08x, 0x%08x, 0x%08x\n",
+			"SPM_DVFS_CMD0~4",
+			spm_reg_read(SPM_DVFS_CMD0),
+			spm_reg_read(SPM_DVFS_CMD1),
+			spm_reg_read(SPM_DVFS_CMD2),
+			spm_reg_read(SPM_DVFS_CMD3),
+			spm_reg_read(SPM_DVFS_CMD4));
 }
 
 void get_opp_info(char *p)
 {
-#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_PMIC_COMMON)
+#if defined(CONFIG_FPGA_EARLY_PORTING) || !defined(CONFIG_MTK_PMIC_COMMON) \
+					|| !defined(CONFIG_MTK_PMIC_NEW_ARCH)
 	int pmic_val = 0;
 #else
 	int pmic_val = pmic_get_register_value(PMIC_VCORE_ADDR);
@@ -459,10 +553,8 @@ void get_opp_info(char *p)
 	p += sprintf(p, "%-10s: %-8u uv  (PMIC: 0x%x)\n",
 			"Vcore", vcore_uv, vcore_uv_to_pmic(vcore_uv));
 	p += sprintf(p, "%-10s: %-8u khz\n", "DDR", ddr_khz);
-	p += sprintf(p, "%6s: 0x%08x\n", "INFO1", get_devinfo_with_index(134));
-	p += sprintf(p, "%6s: 0x%08x\n", "INFO2", get_devinfo_with_index(140));
-	p += sprintf(p, "%6s: 0x%08x\n", "INFO3", get_devinfo_with_index(69));
-	p += sprintf(p, "%6s: 0x%08x\n", "V_MODE", dvfsrc_read(DVFSRC_RSRV_4));
+	p += sprintf(p, "%-10s: %d\n", "CT_MODE", dvfsrc_ct_mode());
+	p += sprintf(p, "%-10s: %x\n", "V_MODE", dvfsrc_vcore_mode());
 }
 
 
@@ -526,8 +618,8 @@ static u32 vcorefs_get_md_level_mask_ddr(void)
 		md_srclk = (md_srclk >> MD_SRC_CLK_DEBUG_SHIFT)
 			& MD_SRC_CLK_DEBUG_MASK;
 
-		if (vopp != 4 && md_srclk == 1)
-			return 2;
+	if (vopp != 3 && md_srclk == 1)
+		return 2;
 	}
 
 	return 0;
@@ -600,6 +692,7 @@ static void vcorefs_get_src_vcore_req(void)
 
 	met_vcorefs_src[VCORE_HIFI_IDX] =
 		vcorefs_get_hifi_vcore_status();
+
 }
 
 static void vcorefs_get_src_misc_info(void)
@@ -613,7 +706,7 @@ static void vcorefs_get_src_misc_info(void)
 	qos_bw4 = dvfsrc_read(DVFSRC_SW_BW_4);
 
 	met_vcorefs_src[SRC_MD2SPM_IDX] =
-		vcorefs_get_md_scenario() & 0x1FFFF;
+		vcorefs_get_md_scenario()  & 0x1FFFF;
 
 	met_vcorefs_src[SRC_SCP_REQ_IDX] =
 		vcorefs_get_scp_req_status();
@@ -653,13 +746,13 @@ static void vcorefs_get_src_misc_info(void)
 
 }
 
+
 int dvfsrc_latch_register(int enable)
 {
 #ifdef	CONFIG_MTK_DBGTOP
 	return mtk_dbgtop_cfg_dvfsrc(1);
-#else
-	return 0;
 #endif
+	return 0;
 }
 
 unsigned int *vcorefs_get_src_req(void)
@@ -687,7 +780,7 @@ int get_cur_ddr_ratio(void)
 	if (idx >= VCORE_DVFS_OPP_NUM)
 		return 0;
 
-	if (get_ddr_opp(idx) < DDR_OPP_7)
+	if (get_ddr_opp(idx) < DDR_OPP_6)
 		return 8;
 	else
 		return 4;
