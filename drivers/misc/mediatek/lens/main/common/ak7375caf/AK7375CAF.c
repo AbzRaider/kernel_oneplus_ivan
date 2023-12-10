@@ -377,7 +377,7 @@ int AK7375CAF_PIDcheck[] = {
 	0x00, 0x00,
 };
 
-int AK7375CAF_updatePIDparam()
+int AK7375CAF_updatePIDparam(void)
 {
 	unsigned short regValue;
 	int ret = 0, i = 0, save_retry = 3;
@@ -402,7 +402,7 @@ int AK7375CAF_updatePIDparam()
 	return -1;
 }
 
-int AK7375CAF_checkPIDparam()
+int AK7375CAF_checkPIDparam(void)
 {
 	unsigned short regValue;
 	int ret = 0, i = 0;
