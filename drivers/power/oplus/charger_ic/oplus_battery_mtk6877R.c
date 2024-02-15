@@ -6691,7 +6691,7 @@ EXPORT_SYMBOL(oplus_chg_set_camera_on);
 
 
 //====================================================================//
-void oplus_set_typec_sinkonly()
+void oplus_set_typec_sinkonly(void)
 {
 	if (pinfo != NULL && pinfo->tcpc != NULL) {
 		tcpm_typec_disable_function(pinfo->tcpc, false);
@@ -6701,7 +6701,7 @@ void oplus_set_typec_sinkonly()
 };
 
 #ifdef OPLUS_FEATURE_CHG_BASIC
-void oplus_set_typec_cc_open()
+void oplus_set_typec_cc_open(void)
 {
 	if (pinfo == NULL || pinfo->tcpc == NULL)
 		return;
