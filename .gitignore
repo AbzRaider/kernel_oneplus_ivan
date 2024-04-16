@@ -125,3 +125,13 @@ all.config
 
 # fetched Android config fragments
 kernel/configs/android-*.cfg
+
+# Kernel building
+/out/
+/clang/
+/los-4.9-32/
+/los-4.9-64/
+/AnyKernel/
+/modules/
+/gcc32/
+/gcc64/
