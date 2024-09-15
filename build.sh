@@ -31,7 +31,7 @@ make -j$(nproc --all) O=out \
 }
 function zupload()
 {
-zimage=out/arch/arm64/boot/Image.gz
+zimage=out/arch/arm64/boot/Image.gz-dtb
 if ! [ -a $zimage ];
 then
 echo  " Failed To Compile Kernel"
