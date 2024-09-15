@@ -2229,15 +2229,15 @@ static int init_vooc_proc(struct oplus_vooc_chip *chip)
 {
 	strcpy(chip->manufacture_info.version, "0");
 	if (get_vooc_mcu_type(chip) == OPLUS_VOOC_MCU_HWID_STM8S) {
-		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "fastchg/%d/oplus_vooc_fw.bin", get_project());
+		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "odm/fastchg/%d/oplus_vooc_fw.bin", get_project());
 	} else if (get_vooc_mcu_type(chip) == OPLUS_VOOC_MCU_HWID_N76E) {
-		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "fastchg/%d/oplus_vooc_fw_n76e.bin", get_project());
+		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "odm/fastchg/%d/oplus_vooc_fw_n76e.bin", get_project());
 	} else if (get_vooc_mcu_type(chip) == OPLUS_VOOC_ASIC_HWID_RK826) {
-		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "fastchg/%d/oplus_vooc_fw_rk826.bin", get_project());
+		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "odm/fastchg/%d/oplus_vooc_fw_rk826.bin", get_project());
 	} else if (get_vooc_mcu_type(chip) == OPLUS_VOOC_ASIC_HWID_RT5125) {
-		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "fastchg/%d/oplus_vooc_fw_rt5125.bin", get_project());
+		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "odm/fastchg/%d/oplus_vooc_fw_rt5125.bin", get_project());
 	} else {
-		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "fastchg/%d/oplus_vooc_fw_op10.bin", get_project());
+		snprintf(chip->fw_path, MAX_FW_NAME_LENGTH, "odm/fastchg/%d/oplus_vooc_fw_op10.bin", get_project());
 	}
 	memcpy(chip->manufacture_info.manufacture, chip->fw_path, MAX_FW_NAME_LENGTH);
 	register_devinfo("fastchg", &chip->manufacture_info);
